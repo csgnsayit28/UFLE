@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#142238">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Karahindiba tohumlarını nefesinle toprağa taşıdığın mobil oyun prototipi.">
+<style>html{color-scheme:dark}body{margin:0;font:14px/1.4 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Üfle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,700,100;1,9..144,700,100&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap">
+<style>
+  /* Layout: full-bleed canvas meadow at dusk; HUD floats at the top and bottom edges; cards sit in the sky above the dandelion. */
+  :root{
+    --sky-deep:#142238;
+    --sky:#2a4866;
+    --seed:#fbf8ef;
+    --bloom:#f6c445;
+    --leaf:#8cc56a;
+    --ember:#f08a6c;
+    --panel:rgba(14,26,41,.84);
+    --line:rgba(251,248,239,.16);
+    --text:#f3f1ea;
+    --muted:#b4c2cb;
+    --ink:#1b2432;
+    --display:'Fraunces', Georgia, 'Times New Roman', serif;
+    --ui:'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color-scheme:dark;
+  }
+  [hidden]{display:none!important}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--sky-deep);color:var(--text);font-family:var(--ui);
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+    padding-block:0;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;overscroll-behavior:none;
+  }
+  #scene{position:fixed;inset:0;display:block;touch-action:none;cursor:pointer}
+
+  .hud-top{
+    position:fixed;top:0;left:0;right:0;z-index:5;pointer-events:none;
+    padding-top:calc(env(safe-area-inset-top, 0px) + 12px);
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+    display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+    text-shadow:0 1px 8px rgba(8,14,24,.55);
+  }
+  .lvl{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .eyebrow{font:800 11px/1.2 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--bloom);margin:0}
+  .lvl-name{font-family:var(--display);font-style:italic;font-weight:700;font-variation-settings:'SOFT' 100,'opsz' 48;font-size:22px;line-height:1.1;color:var(--seed)}
+  .goal{display:flex;align-items:center;gap:6px;font:700 13px/1.3 var(--ui);color:var(--muted);font-variant-numeric:tabular-nums}
+  .wind{display:inline-flex;align-items:center;gap:4px;transition:opacity .3s}
+  .wind svg{transition:transform .4s}
+  .hud-right{display:flex;align-items:center;gap:8px;pointer-events:auto}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font:800 16px/1 var(--ui);color:var(--seed);font-variant-numeric:tabular-nums;text-shadow:none}
+  .icon-btn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);color:var(--seed);cursor:pointer;padding:0}
+  .icon-btn:focus-visible,.btn:focus-visible{outline:3px solid var(--seed);outline-offset:3px}
+
+  .hud-bottom{
+    position:fixed;left:0;right:0;bottom:0;z-index:5;pointer-events:none;
+    padding-top:30px;padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 12px);
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+    background:linear-gradient(to top, rgba(9,16,26,.78), rgba(9,16,26,0));
+  }
+  .meters{display:flex;align-items:center;gap:14px;max-width:520px;margin:0 auto}
+  .meter{display:flex;align-items:flex-start;gap:8px;min-width:0}
+  .meter > span{padding-top:0}
+  .meter.power{flex:1}
+  .meter span{font:800 11px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .track{position:relative;height:10px;border-radius:99px;background:rgba(251,248,239,.13);overflow:hidden;flex:1}
+  .meter.lung .track{flex:none;width:64px}
+  .track i{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);background:linear-gradient(90deg,#f6e7b8,var(--bloom))}
+  .meter.lung .track i{background:var(--leaf);transform:scaleX(1)}
+  .meter.lung.tired .track i{background:var(--ember)}
+  .track b{position:absolute;top:2px;bottom:2px;width:2px;border-radius:2px;background:rgba(20,34,56,.6)}
+  .track-wrap{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+  .meter.lung .track-wrap{flex:none}
+  .track-wrap .track{flex:none;width:100%}
+  .meter.lung .track-wrap .track{width:64px}
+  .scale{display:grid;grid-template-columns:1fr 1fr 1fr;font:700 10.5px/1 var(--ui);color:rgba(180,194,203,.75)}
+  .scale em{font-style:normal}
+  .scale em:nth-child(2){text-align:center}
+  .scale em:nth-child(3){text-align:right}
+  .hint{max-width:520px;margin:9px auto 0;font:600 14px/1.4 var(--ui);color:var(--text)}
+
+  .card{
+    position:fixed;left:0;right:0;z-index:10;display:flex;justify-content:center;pointer-events:none;
+    top:calc(env(safe-area-inset-top, 0px) + 18px);
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+  }
+  .card-inner{
+    pointer-events:auto;width:100%;max-width:400px;display:flex;flex-direction:column;gap:14px;
+    background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:22px 22px 20px;
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    box-shadow:0 24px 60px rgba(4,9,18,.5);
+  }
+  .title-row{display:flex;align-items:flex-end;gap:10px}
+  h1{margin:0;font-family:var(--display);font-style:italic;font-weight:700;font-variation-settings:'SOFT' 100,'opsz' 144;font-size:clamp(68px,22vw,96px);line-height:.86;letter-spacing:-.02em;color:var(--seed)}
+  .floaty{color:var(--seed);margin-bottom:14px;animation:drift 5.5s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(0,0) rotate(-8deg)}50%{transform:translate(10px,-12px) rotate(10deg)}}
+  h2{margin:0;font-family:var(--display);font-style:italic;font-weight:700;font-variation-settings:'SOFT' 100,'opsz' 72;font-size:34px;line-height:1.05;color:var(--seed);text-wrap:balance}
+  .lead{margin:0;font:600 16px/1.5 var(--ui);color:var(--text);max-width:36ch}
+  .note{margin:0;font:600 12.5px/1.45 var(--ui);color:var(--muted)}
+  .actions{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:52px;padding:0 20px;border-radius:999px;font:800 16px/1 var(--ui);cursor:pointer;border:0}
+  .btn-primary{background:var(--bloom);color:var(--ink)}
+  .btn-primary:active{transform:translateY(1px)}
+  .btn-ghost{background:transparent;color:var(--text);border:1.5px solid var(--line)}
+  .stars{display:flex;gap:6px}
+  .stars svg{width:34px;height:34px}
+  .stars path{fill:rgba(251,248,239,.16)}
+  .stars .on path{fill:var(--bloom)}
+
+  .toast{
+    position:fixed;left:50%;z-index:12;transform:translateX(-50%);
+    top:calc(env(safe-area-inset-top, 0px) + 96px);
+    width:max-content;max-width:calc(100% - 32px);
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:10px 16px;font:700 14px/1.4 var(--ui);color:var(--text);text-align:center;
+    pointer-events:none;animation:toastIn .25s ease-out;
+  }
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
+  @media (prefers-reduced-motion: reduce){.floaty,.toast{animation:none}}
+</style>
+
+<canvas id="scene" aria-label="Karahindiba çayırı oyun alanı"></canvas>
+
+<div class="hud-top" id="hudTop" hidden lang="tr">
+  <div class="lvl">
+    <p class="eyebrow" id="lvlNum">Bölüm 1</p>
+    <span class="lvl-name" id="lvlName">İlk Nefes</span>
+    <span class="goal"><span id="goalText">Tarla 0 / 1</span><span class="wind" id="windInd" hidden>· Rüzgâr <svg id="windArrow" width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6h14M10 1.5 15.5 6 10 10.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+  </div>
+  <div class="hud-right">
+    <span class="pill" title="Daldaki tohumlar">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M12 21V9"/><path d="M12 9 5 4.5M12 9 8.2 2.6M12 9V2M12 9l3.8-6.4M12 9l7-4.5"/></g><ellipse cx="12" cy="20.5" rx="1.3" ry="2" fill="currentColor"/></svg>
+      <span id="seedCount">16</span>
+    </span>
+    <button class="icon-btn" id="restartBtn" type="button" aria-label="Bölümü baştan başlat">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="icon-btn" id="muteBtn" type="button" aria-label="Sesi kapat" aria-pressed="false">
+      <svg id="iconSound" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <svg id="iconMute" hidden width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="m16.5 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="hud-bottom" id="hudBottom" hidden>
+  <div class="meters">
+    <div class="meter power"><span>Üfleme</span><div class="track-wrap"><div class="track"><i id="powerFill"></i><b style="left:33%"></b><b style="left:66%"></b></div><div class="scale" aria-hidden="true"><em>hafif</em><em>orta</em><em>güçlü</em></div></div></div>
+    <div class="meter lung" id="lungMeter"><span>Nefes</span><div class="track-wrap"><div class="track"><i id="lungFill"></i></div><div class="scale" aria-hidden="true"><em>&nbsp;</em></div></div></div>
+  </div>
+  <p class="hint" id="hint">Ekrana basılı tut, karahindibaya üfle.</p>
+</div>
+
+<div class="card" id="startCard">
+  <div class="card-inner">
+    <p class="eyebrow">Prototip · 4 bölüm</p>
+    <div class="title-row">
+      <h1>Üfle</h1>
+      <svg class="floaty" width="40" height="48" viewBox="0 0 40 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 44V18" stroke-width="1.3" opacity=".8"/><path d="M20 18 6 9M20 18 10 4M20 18V1M20 18 30 4M20 18l14-9M20 18 3 15M20 18l17-3" stroke-width="1.2"/></g><ellipse cx="20" cy="43" rx="2" ry="3.4" fill="#c9b285"/></svg>
+    </div>
+    <p class="lead">Karahindibanın tohumlarını nefesinle toprağa taşı. Hafif nefes yakına, uzun ve güçlü nefes uzağa gider.</p>
+    <div class="actions">
+      <button class="btn btn-primary" id="playTouch" type="button">Basılı tutarak oyna</button>
+      <button class="btn btn-ghost" id="playMic" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Mikrofonla üfle
+      </button>
+    </div>
+    <p class="note">Mikrofon bu önizlemede kapalı olabilir. Açılmazsa oyun basılı tutarak devam eder.</p>
+  </div>
+</div>
+
+<div class="card" id="endCard" hidden>
+  <div class="card-inner" role="dialog" aria-labelledby="endTitle">
+    <p class="eyebrow" id="endEyebrow">Bölüm 1</p>
+    <h2 id="endTitle">Tarla çiçek açtı!</h2>
+    <div class="stars" id="stars">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>
+    </div>
+    <p class="lead" id="endText"></p>
+    <div class="actions">
+      <button class="btn btn-primary" id="endPrimary" type="button">Sonraki bölüm</button>
+      <button class="btn btn-ghost" id="endSecondary" type="button">Bölümü tekrar oyna</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+'use strict';
+const WW = 420, WH = 800;
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const $ = id => document.getElementById(id);
+const ui = {
+  lvlNum: $('lvlNum'), lvlName: $('lvlName'), goal: $('goalText'), wind: $('windInd'), windArrow: $('windArrow'),
+  seedCount: $('seedCount'), power: $('powerFill'), lung: $('lungFill'), lungMeter: $('lungMeter'),
+  hint: $('hint'), hudTop: $('hudTop'), hudBottom: $('hudBottom'), start: $('startCard'), end: $('endCard'),
+  endEyebrow: $('endEyebrow'), endTitle: $('endTitle'), endText: $('endText'), stars: $('stars'),
+  endPrimary: $('endPrimary'), endSecondary: $('endSecondary'), toast: $('toast'), mute: $('muteBtn'),
+  iconSound: $('iconSound'), iconMute: $('iconMute'), restart: $('restartBtn'), playTouch: $('playTouch'), playMic: $('playMic')
+};
+
+/* ---------- Levels (world units: 420 wide, ground near y=650) ---------- */
+const LEVELS = [
+  { name: 'İlk Nefes', seeds: 16, breeze: 0, gust: 0,
+    ground: [[-600,652],[0,652],[140,648],[260,652],[420,646],[1100,646]],
+    patches: [{x0:215, x1:300, need:4}], water: null,
+    hint: { touch: 'Ekrana basılı tut, karahindibaya üfle. Tohumları kahverengi toprağa indir.', mic: 'Telefonun altına doğru üfle. Tohumları kahverengi toprağa indir.' },
+    tip: 'Biraz daha uzun üflemeyi dene.' },
+  { name: 'Yakın ve Uzak', seeds: 18, breeze: 0, gust: 0,
+    ground: [[-600,652],[0,652],[160,648],[240,656],[330,642],[420,640],[1100,640]],
+    patches: [{x0:118, x1:172, need:3}, {x0:335, x1:398, need:3}], water: null,
+    hint: { touch: 'Yakındaki tarla için kısa bir dokunuş, uzaktaki için uzun bir nefes.', mic: 'Yakındaki tarla için hafif, uzaktaki için uzun ve güçlü üfle.' },
+    tip: 'Kısa ve uzun nefesleri karıştırmayı dene.' },
+  { name: 'Gölün Ötesi', seeds: 20, breeze: -6, gust: 4,
+    ground: [[-600,650],[0,650],[150,650],[175,690],[275,690],[295,650],[315,622],[335,610],[440,608],[1100,608]],
+    patches: [{x0:95, x1:145, need:2}, {x0:337, x1:392, need:3}], water: {x0:150, x1:296, y:664},
+    hint: { touch: 'Tohumları gölün üstünden tepeye taşı. Hafif bir karşı rüzgâr var.', mic: 'Tohumları gölün üstünden tepeye taşı. Hafif bir karşı rüzgâr var.' },
+    tip: 'Karşı rüzgâra karşı biraz daha güçlü üfle.' },
+  { name: 'Esintili Gün', seeds: 22, breeze: 4, gust: 38,
+    ground: [[-600,646],[0,646],[90,652],[140,654],[205,632],[255,622],[300,632],[340,648],[420,650],[1100,650]],
+    patches: [{x0:100, x1:145, need:2}, {x0:228, x1:278, need:3}, {x0:350, x1:400, need:2}], water: null,
+    hint: { touch: 'Rüzgâr yön değiştiriyor. Okun sağı gösterdiği anı bekle.', mic: 'Rüzgâr yön değiştiriyor. Okun sağı gösterdiği anı bekle.' },
+    tip: 'Rüzgâr sağa döndüğünde üfle.' }
+];
+const FLOWERS = ['#f6c445', '#f08a6c', '#d3a6f0', '#fbf8ef', '#ef7396'];
+const WANG = -0.32, WC = Math.cos(WANG), WS = Math.sin(WANG);
+const G = 60;
+const hash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+let W = 0, H = 0, DPR = 1, S = 1, OX = 0, OY = 0, XMIN = 0, XMAX = WW, skyGrad = null, horizonY = 0;
+let state = 'menu', levelIndex = 0, level = LEVELS[0];
+let patches = [], seeds = [], attached = [], particles = [], totalSeeds = 0;
+let time = 0, ltime = 0, blow = 0, releaseAcc = 0, wasBlowing = false, windAcc = 0, ambAcc = 0;
+let endPending = false, endTimer = 0, endState = null;
+let headY = 500, loopStarted = false, last = 0, toastTimer = null;
+const input = { holding: false, holdT: 0, lung: 1, exhausted: false, touchBlow: false };
+let mic = null;
+
+const clouds = [0,1,2,3].map(i => ({ x: -60 + i * 150 + hash(i) * 60, y: 150 + hash(i + 9) * 170, s: 0.8 + hash(i + 4) * 0.7, spd: 4 + hash(i + 2) * 4 }));
+const stars = Array.from({length: 34}, (_, i) => ({ u: hash(i * 3 + 1), v: hash(i * 5 + 2) * 0.55, r: 0.6 + hash(i * 7) * 1.1, a: 0.3 + hash(i * 11) * 0.5, ph: hash(i) * 6.3, sp: 0.6 + hash(i * 13) * 1.6 }));
+
+/* ---------- Geometry ---------- */
+function groundY(x) {
+  const g = level.ground;
+  if (x <= g[0][0]) return g[0][1];
+  for (let i = 1; i < g.length; i++) {
+    if (x <= g[i][0]) {
+      const [x0, y0] = g[i - 1], [x1, y1] = g[i];
+      const t = (x - x0) / (x1 - x0);
+      return y0 + (y1 - y0) * (1 - Math.cos(t * Math.PI)) / 2;
+    }
+  }
+  return g[g.length - 1][1];
+}
+function amb() {
+  return level.breeze + level.gust * (0.65 * Math.sin(ltime * 0.55) + 0.35 * Math.sin(ltime * 1.37 + 1.3));
+}
+function windAt(x, y) {
+  const dx = Math.max(0, x - 40);
+  const fall = 0.28 + 0.72 * Math.exp(-dx / 260);
+  const dy = Math.abs(y - headY) / (150 + dx * 0.6);
+  const m = blow * 300 * fall * (0.35 + 0.65 * Math.exp(-dy * dy));
+  return [m * WC + amb(), m * WS];
+}
+function geom() {
+  const bx = 70, by = groundY(70), L = 150;
+  const sway = Math.sin(time * 0.8) * 0.035 + blow * 0.24 + amb() * 0.0025;
+  const hx = bx + Math.sin(sway) * L, hy = by - Math.cos(sway) * L;
+  return { bx, by, hx, hy, cx: bx + Math.sin(sway) * L * 0.15, cy: by - L * 0.55 };
+}
+
+/* ---------- Setup ---------- */
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  S = Math.min(W / WW, H / WH);
+  OX = (W - WW * S) / 2; OY = H - WH * S;
+  XMIN = -OX / S; XMAX = (W - OX) / S;
+  horizonY = OY + 600 * S;
+  const t = v => clamp(v / H, 0, 1);
+  skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#142238');
+  skyGrad.addColorStop(t(horizonY * 0.45), '#2a4866');
+  skyGrad.addColorStop(t(horizonY * 0.8), '#8f86a0');
+  skyGrad.addColorStop(t(horizonY * 0.97), '#e8b78c');
+  skyGrad.addColorStop(1, '#e8b78c');
+}
+
+function loadLevel(i) {
+  levelIndex = i; level = LEVELS[i];
+  patches = level.patches.map(p => ({ ...p, count: 0, bloomed: false, bloomT: 0, plants: [] }));
+  seeds = []; particles = []; attached = [];
+  totalSeeds = level.seeds;
+  for (let k = 0; k < totalSeeds; k++) {
+    attached.push({ a: (k / totalSeeds) * Math.PI * 2 + (hash(k + i * 31) - 0.5) * 0.25, len: 21 + hash(k * 7 + 3) * 5, phase: hash(k * 13) * 6.28 });
+  }
+  releaseAcc = 0; wasBlowing = false; blow = 0; ltime = 0;
+  endPending = false; endTimer = 0; endState = null;
+  input.lung = 1; input.exhausted = false; input.holding = false;
+  ui.lvlNum.textContent = 'Bölüm ' + (i + 1);
+  ui.lvlName.textContent = level.name;
+  ui.seedCount.textContent = attached.length;
+  ui.wind.hidden = !(level.breeze || level.gust);
+  updateGoal(); setHint();
+}
+function updateGoal() {
+  ui.goal.textContent = 'Tarla ' + patches.filter(p => p.bloomed).length + ' / ' + patches.length;
+}
+function setHint() {
+  ui.hint.textContent = mic ? level.hint.mic : level.hint.touch;
+  ui.lungMeter.hidden = !!mic;
+}
+function startPlay() {
+  state = 'play';
+  ui.start.hidden = true; ui.end.hidden = true;
+  ui.hudTop.hidden = false; ui.hudBottom.hidden = false;
+  setHint();
+}
+
+/* ---------- Audio ---------- */
+let actx = null, master = null, breathGain = null, breathFilter = null, muted = false;
+function ensureAudio() {
+  if (actx) { if (actx.state === 'suspended') actx.resume().catch(() => {}); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    actx = new AC();
+    master = actx.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(actx.destination);
+    const len = actx.sampleRate * 2, buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+    let lastV = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; lastV = (lastV + 0.02 * w) / 1.02; d[i] = lastV * 3.5 + w * 0.12; }
+    const src = actx.createBufferSource(); src.buffer = buf; src.loop = true;
+    breathFilter = actx.createBiquadFilter(); breathFilter.type = 'bandpass'; breathFilter.frequency.value = 600; breathFilter.Q.value = 0.5;
+    breathGain = actx.createGain(); breathGain.gain.value = 0;
+    src.connect(breathFilter); breathFilter.connect(breathGain); breathGain.connect(master); src.start();
+  } catch (e) { actx = null; }
+}
+function tone(freq, delay, dur, vol, type) {
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + delay;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const NOTES = [523.25, 587.33, 659.25, 783.99, 880];
+const sfxPlant = () => tone(pick(NOTES), 0, 0.35, 0.07, 'triangle');
+const sfxSplash = () => { tone(220, 0, 0.18, 0.05, 'sine'); tone(180, 0.05, 0.2, 0.04, 'sine'); };
+const sfxBloom = () => { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * 0.09, 0.7, 0.08, 'sine')); };
+const sfxWin = () => { [659.25, 783.99, 880, 1046.5, 1318.5].forEach((f, i) => tone(f, 0.15 + i * 0.12, 0.9, 0.07, 'triangle')); };
+function audioFrame() {
+  if (!breathGain) return;
+  const target = (input.touchBlow && !muted) ? blow * 0.55 : 0;
+  breathGain.gain.value += (target - breathGain.gain.value) * 0.25;
+  breathFilter.frequency.value = 450 + blow * 1500;
+}
+
+/* ---------- Microphone ---------- */
+async function enableMic() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !actx) return false;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const srcNode = actx.createMediaStreamSource(stream);
+    const an = actx.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = 0.2;
+    srcNode.connect(an);
+    mic = { an, buf: new Float32Array(an.fftSize), freq: new Uint8Array(an.frequencyBinCount), floor: null, calibT: 0 };
+    return true;
+  } catch (e) { return false; }
+}
+function micLevel(dt) {
+  const m = mic;
+  m.an.getFloatTimeDomainData(m.buf);
+  let s = 0;
+  for (let i = 0; i < m.buf.length; i++) s += m.buf[i] * m.buf[i];
+  const rms = Math.sqrt(s / m.buf.length);
+  m.an.getByteFrequencyData(m.freq);
+  const binHz = actx.sampleRate / m.an.fftSize;
+  let lo = 0, nl = 0;
+  for (let i = 1; i * binHz < 1000 && i < m.freq.length; i++) { lo += m.freq[i]; nl++; }
+  lo /= Math.max(1, nl) * 255;
+  if (m.calibT < 0.9) { m.calibT += dt; m.floor = m.floor === null ? rms : m.floor * 0.9 + rms * 0.1; return 0; }
+  if (rms < m.floor * 1.6) m.floor = m.floor * 0.99 + rms * 0.01;
+  const over = rms - Math.max(0.006, m.floor * 2.2);
+  if (over <= 0) return 0;
+  const v = clamp(over / 0.08, 0, 1) * (0.55 + 0.9 * lo);
+  return v < 0.05 ? 0 : clamp(0.12 + v, 0, 1);
+}
+
+/* ---------- Update ---------- */
+function updateBlow(dt) {
+  let touchT = 0;
+  if (state === 'play' && input.holding && !input.exhausted) {
+    input.holdT += dt;
+    const r = Math.min(1, input.holdT / 1.1);
+    touchT = 0.18 + 0.82 * Math.pow(r, 1.4);
+    input.lung -= dt * (0.2 + 0.36 * blow);
+    if (input.lung <= 0) { input.lung = 0; input.exhausted = true; showToast('Nefesin bitti. Parmağını kaldır, nefes al.'); }
+  } else if (!input.holding) {
+    input.lung = Math.min(1, input.lung + dt * 0.5);
+    if (input.exhausted && input.lung > 0.3) input.exhausted = false;
+  }
+  const micT = (state === 'play' && mic) ? micLevel(dt) : 0;
+  const target = Math.max(touchT, micT);
+  input.touchBlow = touchT > 0 && touchT >= micT;
+  blow += (target - blow) * Math.min(1, (target > blow ? 14 : 9) * dt);
+  if (blow < 0.002) blow = 0;
+}
+
+function releaseOne(d) {
+  let bi = 0, bv = -9;
+  for (let i = 0; i < attached.length; i++) { const v = Math.cos(attached[i].a - WANG); if (v > bv) { bv = v; bi = i; } }
+  const a = attached.splice(bi, 1)[0];
+  const x = d.hx + Math.cos(a.a) * a.len, y = d.hy + Math.sin(a.a) * a.len;
+  const [wx, wy] = windAt(x, y);
+  seeds.push({ x, y, vx: wx * 0.45 + (Math.random() - 0.5) * 20, vy: wy * 0.45 + (Math.random() - 0.5) * 20,
+    k: 1.5 + Math.random() * 0.7, p1: Math.random() * 6.28, p2: Math.random() * 6.28, rot: 0, state: 'air', alpha: 1, wait: 0 });
+  ui.seedCount.textContent = attached.length;
+}
+
+function land(s) {
+  const p = patches.find(q => s.x >= q.x0 - 2 && s.x <= q.x1 + 2);
+  if (p) {
+    s.state = 'planted';
+    p.plants.push({ x: clamp(s.x, p.x0 + 3, p.x1 - 3), t: 0, delay: 0, extra: false, color: pick(FLOWERS), size: 0.85 + Math.random() * 0.35 });
+    p.count++;
+    sfxPlant();
+    if (!p.bloomed && p.count >= p.need) bloom(p);
+  } else {
+    s.state = 'grass'; s.wait = 1.1;
+  }
+}
+
+function bloom(p) {
+  p.bloomed = true; p.bloomT = 0;
+  const n = Math.round((p.x1 - p.x0) / 8);
+  for (let k = 0; k < n; k++) {
+    p.plants.push({ x: p.x0 + 4 + (p.x1 - p.x0 - 8) * (k + 0.5) / n + (Math.random() - 0.5) * 4, t: 0, delay: 0.15 + Math.random() * 0.7, extra: true, color: pick(FLOWERS), size: 0.7 + Math.random() * 0.5 });
+  }
+  const count = reduceMotion ? 6 : 22;
+  for (let k = 0; k < count; k++) {
+    const x = p.x0 + Math.random() * (p.x1 - p.x0);
+    particles.push({ k: 'spark', x, y: groundY(x) - 6, vx: (Math.random() - 0.5) * 30, vy: -30 - Math.random() * 50, life: 1 + Math.random() * 0.6, max: 1.6, c: pick(FLOWERS), r: 1 + Math.random() * 1.6 });
+  }
+  sfxBloom();
+  updateGoal();
+  if (patches.every(q => q.bloomed)) { endPending = true; endState = 'win'; endTimer = 1.8; }
+}
+
+function update(dt) {
+  updateBlow(dt);
+  const d = geom();
+  headY = d.hy;
+
+  if (state === 'play' && attached.length && blow > 0.1) {
+    if (!wasBlowing) releaseAcc = 0.9;
+    releaseAcc += dt * (1 + 6 * blow * blow);
+    while (releaseAcc >= 1 && attached.length) { releaseAcc -= 1; releaseOne(d); }
+    wasBlowing = true;
+  } else if (blow <= 0.1) { wasBlowing = false; releaseAcc = 0; }
+
+  const w = level.water;
+  for (const s of seeds) {
+    if (s.state === 'air') {
+      const [wx, wy] = windAt(s.x, s.y);
+      const tx = wx + 16 * Math.sin(time * 2.1 + s.p1), ty = wy + 12 * Math.cos(time * 1.7 + s.p2);
+      s.vx += (tx - s.vx) * s.k * dt;
+      s.vy += ((ty - s.vy) * s.k + G) * dt;
+      s.x += s.vx * dt; s.y += s.vy * dt;
+      s.rot += (clamp(s.vx * 0.004, -0.6, 0.6) - s.rot) * 3 * dt;
+      const gy = groundY(s.x);
+      if (w && s.x > w.x0 && s.x < w.x1 && gy > w.y + 1 && s.y >= w.y) {
+        s.state = 'sink'; s.y = w.y;
+        particles.push({ k: 'ripple', x: s.x, y: w.y + 1, r: 2, life: 1, max: 1 });
+        sfxSplash();
+      } else if (s.y >= gy - 2) { s.y = gy - 2; land(s); }
+      else if (s.x > XMAX + 40 || s.x < XMIN - 40 || s.y > WH + 20) s.state = 'gone';
+    } else if (s.state === 'sink') {
+      s.alpha -= dt * 1.4; s.y += dt * 5; if (s.alpha <= 0) s.state = 'gone';
+    } else if (s.state === 'grass') {
+      s.wait -= dt; if (s.wait < 0) s.alpha -= dt * 0.8; if (s.alpha <= 0) s.state = 'gone';
+    }
+  }
+  seeds = seeds.filter(s => s.state !== 'gone' && s.state !== 'planted');
+
+  for (const p of patches) {
+    if (p.bloomed) p.bloomT += dt;
+    for (const pl of p.plants) { if (pl.delay > 0) pl.delay -= dt; else pl.t += dt; }
+  }
+
+  // wind streaks from the breath
+  if (blow > 0.05) {
+    windAcc += dt * 40 * blow;
+    while (windAcc >= 1) {
+      windAcc -= 1;
+      particles.push({ k: 'wind', x: -10 + Math.random() * 40, y: headY + (Math.random() - 0.5) * 130, vx: 0, vy: 0, life: 1.3, max: 1.3, s: blow });
+    }
+  }
+  const a = amb();
+  if (Math.abs(a) > 10) {
+    ambAcc += dt * Math.abs(a) * 0.12;
+    while (ambAcc >= 1) {
+      ambAcc -= 1;
+      const vx = a * 3;
+      particles.push({ k: 'amb', x: a > 0 ? XMIN - 10 : XMAX + 10, y: 240 + Math.random() * 380, vx, vy: 0, life: (XMAX - XMIN + 40) / Math.abs(vx), max: 99, s: Math.min(1, Math.abs(a) / 35) });
+    }
+  }
+  for (const pt of particles) {
+    pt.life -= dt;
+    if (pt.k === 'wind') {
+      const [wx, wy] = windAt(pt.x, pt.y);
+      pt.vx += (wx - pt.vx) * 5 * dt; pt.vy += (wy - pt.vy) * 5 * dt;
+      pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+    } else if (pt.k === 'amb') { pt.x += pt.vx * dt; }
+    else if (pt.k === 'spark') { pt.vx *= 0.98; pt.vy += 12 * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; }
+    else if (pt.k === 'ripple') { pt.r += dt * 14; }
+  }
+  particles = particles.filter(pt => pt.life > 0);
+
+  for (const c of clouds) {
+    c.x += (reduceMotion ? 0 : (c.spd + a * 0.25)) * dt;
+    if (c.x > XMAX + 120) c.x = XMIN - 120;
+    if (c.x < XMIN - 140) c.x = XMAX + 100;
+  }
+
+  if (state === 'play') {
+    if (!endPending && attached.length === 0 && !seeds.some(s => s.state === 'air') && !patches.every(p => p.bloomed)) {
+      endPending = true; endState = 'fail'; endTimer = 1.1;
+    }
+    if (endPending) { endTimer -= dt; if (endTimer <= 0) showEnd(); }
+  }
+  audioFrame();
+  hudFrame(a);
+}
+
+function hudFrame(a) {
+  if (state === 'menu') return;
+  ui.power.style.transform = 'scaleX(' + blow.toFixed(3) + ')';
+  ui.lung.style.transform = 'scaleX(' + input.lung.toFixed(3) + ')';
+  ui.lungMeter.classList.toggle('tired', input.exhausted);
+  if (!ui.wind.hidden) {
+    ui.windArrow.style.transform = 'scaleX(' + (a < 0 ? -1 : 1) + ')';
+    ui.wind.style.opacity = (0.45 + 0.55 * clamp(Math.abs(a) / 35, 0, 1)).toFixed(2);
+  }
+}
+
+/* ---------- Draw ---------- */
+function leaf(x, y, ang, len, w) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  const teeth = 4;
+  for (let i = 1; i <= teeth; i++) {
+    const t = i / teeth, px = len * t, ww = w * Math.sin(Math.PI * Math.min(0.97, t)) * (1 - t * 0.3);
+    ctx.lineTo(px - len / teeth * 0.55, -ww * 0.45); ctx.lineTo(px, -ww);
+  }
+  ctx.lineTo(len, 0);
+  for (let i = teeth; i >= 1; i--) {
+    const t = i / teeth, px = len * t, ww = w * Math.sin(Math.PI * Math.min(0.97, t)) * (1 - t * 0.3);
+    ctx.lineTo(px, ww * 0.75); ctx.lineTo(px - len / teeth * 0.55, ww * 0.3);
+  }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fbf8ef';
+  for (const st of stars) {
+    ctx.globalAlpha = st.a * (reduceMotion ? 0.8 : 0.6 + 0.4 * Math.sin(time * st.sp + st.ph));
+    ctx.beginPath(); ctx.arc(st.u * W, st.v * horizonY * 0.75, st.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.setTransform(DPR * S, 0, 0, DPR * S, DPR * OX, DPR * OY);
+  const x0 = XMIN - 10, x1 = XMAX + 10, a = amb();
+
+  // sun
+  const sg = ctx.createRadialGradient(338, 566, 10, 338, 566, 150);
+  sg.addColorStop(0, 'rgba(255,214,160,0.55)'); sg.addColorStop(1, 'rgba(255,214,160,0)');
+  ctx.fillStyle = sg; ctx.fillRect(188, 416, 300, 300);
+  ctx.fillStyle = '#ffdcae'; ctx.beginPath(); ctx.arc(338, 566, 20, 0, 6.283); ctx.fill();
+
+  // clouds
+  ctx.fillStyle = 'rgba(248,206,196,0.15)';
+  for (const c of clouds) {
+    ctx.beginPath();
+    for (const e of [[0, 0, 40, 11], [-24, 3, 26, 8], [28, 2, 30, 8], [4, -7, 22, 10]]) {
+      const ex = c.x + e[0] * c.s, ey = c.y + e[1] * c.s;
+      ctx.moveTo(ex + e[2] * c.s, ey); ctx.ellipse(ex, ey, e[2] * c.s, e[3] * c.s, 0, 0, 6.283);
+    }
+    ctx.fill();
+  }
+
+  // hills
+  ctx.fillStyle = '#46647b';
+  ctx.beginPath(); ctx.moveTo(x0, WH);
+  for (let x = x0; x <= x1 + 8; x += 8) ctx.lineTo(x, 582 + 16 * Math.sin(x * 0.011 + 1.2) + 8 * Math.sin(x * 0.033));
+  ctx.lineTo(x1 + 8, WH); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#37574a';
+  ctx.beginPath(); ctx.moveTo(x0, WH);
+  for (let x = x0; x <= x1 + 8; x += 8) ctx.lineTo(x, 618 + 12 * Math.sin(x * 0.017 + 2.4) + 6 * Math.sin(x * 0.051));
+  ctx.lineTo(x1 + 8, WH); ctx.closePath(); ctx.fill();
+
+  // ground
+  const gg = ctx.createLinearGradient(0, 590, 0, WH);
+  gg.addColorStop(0, '#2f4b36'); gg.addColorStop(1, '#192a20');
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.moveTo(x0, WH);
+  for (let x = x0; x <= x1 + 4; x += 4) ctx.lineTo(x, groundY(x));
+  ctx.lineTo(x1 + 4, WH); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#5c8749'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let x = x0; x <= x1 + 4; x += 4) { const y = groundY(x); x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+  ctx.stroke();
+
+  // water
+  const w = level.water;
+  if (w) {
+    const pts = [];
+    for (let x = w.x0; x <= w.x1; x += 3) { const gy = groundY(x); pts.push([x, Math.min(w.y, gy), gy + 1.5]); }
+    const wg = ctx.createLinearGradient(0, w.y, 0, w.y + 30);
+    wg.addColorStop(0, '#6f9fbd'); wg.addColorStop(1, '#2d5872');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (const p of pts) ctx.lineTo(p[0], p[1]);
+    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], pts[i][2]);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,226,190,0.45)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < 7; i++) {
+      const span = w.x1 - w.x0 - 40;
+      const sx = w.x0 + 20 + ((i * 41 + time * 7) % span);
+      const sy = w.y + 4 + (i % 3) * 5;
+      if (groundY(sx) > sy + 2 && groundY(sx + 12) > sy + 2) { ctx.moveTo(sx, sy); ctx.lineTo(sx + 12, sy); }
+    }
+    ctx.stroke();
+  }
+
+  // soil patches
+  for (const p of patches) {
+    ctx.fillStyle = '#5b3b25';
+    ctx.beginPath(); ctx.moveTo(p.x0, groundY(p.x0));
+    for (let x = p.x0; x <= p.x1; x += 3) ctx.lineTo(x, groundY(x) - 1.5);
+    ctx.lineTo(p.x1, groundY(p.x1) + 9);
+    for (let x = p.x1; x >= p.x0; x -= 3) ctx.lineTo(x, groundY(x) + 9);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3d2616'; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let x = p.x0 + 5; x < p.x1 - 4; x += 7) { const gy = groundY(x); ctx.moveTo(x, gy + 1); ctx.lineTo(x + 3, gy + 6); }
+    ctx.stroke();
+    ctx.strokeStyle = '#7d5638'; ctx.lineWidth = 1.4; ctx.beginPath();
+    for (let x = p.x0; x <= p.x1; x += 3) { const y = groundY(x) - 1.5; x === p.x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+    if (p.bloomed && p.bloomT < 1.6) {
+      const cx = (p.x0 + p.x1) / 2, cy = groundY(cx) - 10;
+      const gl = ctx.createRadialGradient(cx, cy, 2, cx, cy, 70);
+      gl.addColorStop(0, 'rgba(255,220,140,' + (0.35 * (1 - p.bloomT / 1.6)).toFixed(3) + ')'); gl.addColorStop(1, 'rgba(255,220,140,0)');
+      ctx.fillStyle = gl; ctx.fillRect(cx - 70, cy - 70, 140, 140);
+    }
+  }
+
+  // grass blades
+  ctx.strokeStyle = '#6f9a55'; ctx.lineWidth = 1.1; ctx.lineCap = 'round';
+  ctx.beginPath();
+  const startI = Math.floor(x0 / 4.5);
+  for (let i = startI; i * 4.5 < x1; i++) {
+    const x = i * 4.5 + hash(i) * 2;
+    const gy = groundY(x);
+    if (w && x > w.x0 && x < w.x1 && gy > w.y - 1) continue;
+    if (patches.some(p => x > p.x0 - 1 && x < p.x1 + 1)) continue;
+    const h = 4 + hash(i + 77) * 7;
+    const wx = windAt(x, gy - 10)[0];
+    const lean = clamp(wx * 0.006, -0.9, 0.9) + 0.1 * Math.sin(time * 1.6 + x * 0.05);
+    ctx.moveTo(x, gy + 1); ctx.quadraticCurveTo(x, gy - h * 0.5, x + lean * h, gy - h);
+  }
+  ctx.stroke();
+
+  // plants and flowers
+  for (const p of patches) {
+    for (const pl of p.plants) {
+      if (pl.delay > 0) continue;
+      const g = clamp(pl.t / 0.45, 0, 1); if (g <= 0) continue;
+      const eg = 1 - Math.pow(1 - g, 3);
+      let f = 0;
+      if (p.bloomed) f = clamp((pl.extra ? pl.t - 0.2 : p.bloomT) / 0.6, 0, 1);
+      const ef = f <= 0 ? 0 : 1 + 2.2 * Math.pow(f - 1, 3) + 1.2 * Math.pow(f - 1, 2);
+      const gy = groundY(pl.x);
+      const h = (8 + 10 * f) * pl.size * eg;
+      const sway = Math.sin(time * 1.7 + pl.x * 0.13) * 0.8 + a * 0.03;
+      const tx = pl.x + sway * h * 0.12, ty = gy - h;
+      ctx.strokeStyle = '#8cc56a'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(pl.x, gy); ctx.quadraticCurveTo(pl.x, gy - h * 0.5, tx, ty); ctx.stroke();
+      ctx.fillStyle = '#79b05a';
+      ctx.beginPath();
+      ctx.ellipse(pl.x - 2.4 * eg, gy - h * 0.33, 3 * eg, 1.3 * eg, -0.5, 0, 6.283);
+      ctx.ellipse(pl.x + 2.4 * eg, gy - h * 0.42, 3 * eg, 1.3 * eg, 0.5, 0, 6.283);
+      ctx.fill();
+      if (ef > 0) {
+        const r = 3.3 * pl.size * ef;
+        ctx.fillStyle = pl.color; ctx.beginPath();
+        for (let k = 0; k < 5; k++) {
+          const ang = k / 5 * 6.283 + pl.x;
+          const px = tx + Math.cos(ang) * r * 0.8, py = ty + Math.sin(ang) * r * 0.8;
+          ctx.moveTo(px + r * 0.62, py); ctx.arc(px, py, r * 0.62, 0, 6.283);
+        }
+        ctx.fill();
+        ctx.fillStyle = pl.color === '#f6c445' ? '#c9792b' : '#f0b83a';
+        ctx.beginPath(); ctx.arc(tx, ty, r * 0.42, 0, 6.283); ctx.fill();
+      } else {
+        ctx.fillStyle = '#a7d27f'; ctx.beginPath(); ctx.arc(tx, ty, 1.4 * eg, 0, 6.283); ctx.fill();
+      }
+    }
+  }
+
+  // dandelion
+  const d = geom();
+  ctx.fillStyle = '#4c7a3c';
+  leaf(d.bx - 1, d.by - 1, Math.PI + 0.28, 30, 7);
+  leaf(d.bx + 1, d.by - 1, -0.25, 34, 7.5);
+  leaf(d.bx, d.by - 2, -2.35, 22, 5.5);
+  ctx.strokeStyle = '#86ad62'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(d.bx, d.by); ctx.quadraticCurveTo(d.cx, d.cy, d.hx, d.hy); ctx.stroke();
+  const frac = attached.length / Math.max(1, totalSeeds);
+  if (frac > 0) {
+    const hg = ctx.createRadialGradient(d.hx, d.hy, 4, d.hx, d.hy, 48);
+    hg.addColorStop(0, 'rgba(255,250,236,' + (0.06 + 0.22 * frac).toFixed(3) + ')'); hg.addColorStop(1, 'rgba(255,250,236,0)');
+    ctx.fillStyle = hg; ctx.fillRect(d.hx - 50, d.hy - 50, 100, 100);
+  }
+  ctx.strokeStyle = 'rgba(251,248,239,0.92)'; ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  for (const s of attached) {
+    const ang = s.a + Math.sin(time * (2.5 + blow * 16) + s.phase) * (0.025 + blow * 0.09);
+    const c = Math.cos(ang), sn = Math.sin(ang);
+    const tx = d.hx + c * s.len, ty = d.hy + sn * s.len;
+    ctx.moveTo(d.hx + c * 4, d.hy + sn * 4); ctx.lineTo(tx, ty);
+    for (let j = -3; j <= 3; j++) {
+      const ta = ang + j * 0.28;
+      ctx.moveTo(tx, ty); ctx.lineTo(tx + Math.cos(ta) * 6.5, ty + Math.sin(ta) * 6.5);
+    }
+  }
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(251,248,239,0.14)'; ctx.beginPath();
+  for (const s of attached) {
+    const tx = d.hx + Math.cos(s.a) * (s.len + 4), ty = d.hy + Math.sin(s.a) * (s.len + 4);
+    ctx.moveTo(tx + 5.5, ty); ctx.arc(tx, ty, 5.5, 0, 6.283);
+  }
+  ctx.fill();
+  ctx.fillStyle = '#c4b483'; ctx.beginPath(); ctx.arc(d.hx, d.hy, 4.2, 0, 6.283); ctx.fill();
+
+  // flying seeds
+  for (const s of seeds) {
+    ctx.save(); ctx.globalAlpha = clamp(s.alpha, 0, 1);
+    ctx.translate(s.x, s.y); ctx.rotate(s.rot);
+    ctx.fillStyle = 'rgba(251,248,239,0.13)'; ctx.beginPath(); ctx.arc(0, -9, 8, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = '#a08a5f'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(0, 7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(240,234,218,0.75)'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(0, -7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(251,248,239,0.95)'; ctx.lineWidth = 0.8; ctx.beginPath();
+    for (let j = 0; j <= 8; j++) {
+      const ang = -Math.PI / 2 + (j / 8 - 0.5) * 2.5;
+      ctx.moveTo(0, -7); ctx.lineTo(Math.cos(ang) * 8.5, -7 + Math.sin(ang) * 8.5);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // particles
+  ctx.lineCap = 'round';
+  for (const pt of particles) {
+    if (pt.k === 'wind') {
+      const al = 0.3 * pt.s * Math.min(1, pt.life / 0.4) * Math.min(1, (pt.max - pt.life) / 0.2);
+      ctx.strokeStyle = 'rgba(251,248,239,' + al.toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - pt.vx * 0.08, pt.y - pt.vy * 0.08); ctx.stroke();
+    } else if (pt.k === 'amb') {
+      ctx.strokeStyle = 'rgba(251,248,239,' + (0.12 * pt.s).toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - pt.vx * 0.25, pt.y); ctx.stroke();
+    } else if (pt.k === 'spark') {
+      ctx.globalAlpha = clamp(pt.life / 0.8, 0, 1);
+      ctx.fillStyle = pt.c; ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (pt.k === 'ripple') {
+      ctx.strokeStyle = 'rgba(230,240,248,' + (0.6 * pt.life).toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(pt.x, pt.y, pt.r, pt.r * 0.3, 0, 0, 6.283); ctx.stroke();
+    }
+  }
+
+  // patch progress dots
+  for (const p of patches) {
+    if (p.bloomed) continue;
+    const cx = (p.x0 + p.x1) / 2, y = groundY(cx) - 34;
+    for (let i = 0; i < p.need; i++) {
+      const x = cx + (i - (p.need - 1) / 2) * 10;
+      ctx.beginPath(); ctx.arc(x, y, 3.1, 0, 6.283);
+      if (i < p.count) { ctx.fillStyle = '#f6c445'; ctx.fill(); }
+      else { ctx.strokeStyle = 'rgba(251,248,239,0.6)'; ctx.lineWidth = 1.2; ctx.stroke(); }
+    }
+  }
+}
+
+/* ---------- End screens ---------- */
+function showEnd() {
+  state = 'end'; endPending = false; input.holding = false;
+  const last = levelIndex === LEVELS.length - 1;
+  ui.endEyebrow.textContent = 'Bölüm ' + (levelIndex + 1) + ' · ' + level.name;
+  const starEls = ui.stars.querySelectorAll('svg');
+  if (endState === 'win') {
+    const ratio = attached.length / totalSeeds;
+    const n = ratio >= 0.4 ? 3 : ratio >= 0.2 ? 2 : 1;
+    starEls.forEach((el, i) => el.classList.toggle('on', i < n));
+    ui.stars.hidden = false;
+    ui.stars.setAttribute('aria-label', '3 yıldızdan ' + n);
+    ui.endTitle.textContent = last ? 'Bütün bahçe çiçekte!' : (patches.length > 1 ? 'Tarlalar çiçek açtı!' : 'Tarla çiçek açtı!');
+    ui.endText.textContent = 'Dalda ' + attached.length + ' tohum kaldı. ' + (n < 3 ? 'Daha az tohumla bitirirsen daha çok yıldız alırsın.' : 'Neredeyse hiç tohum harcamadın.');
+    ui.endPrimary.textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
+    ui.endSecondary.hidden = false;
+    sfxWin();
+  } else {
+    ui.stars.hidden = true;
+    const left = patches.filter(p => !p.bloomed).length;
+    ui.endTitle.textContent = 'Tohumlar bitti';
+    ui.endText.textContent = left + ' tarla çiçeksiz kaldı. ' + level.tip;
+    ui.endPrimary.textContent = 'Tekrar dene';
+    ui.endSecondary.hidden = true;
+  }
+  ui.end.hidden = false;
+  ui.endPrimary.focus({ preventScroll: true });
+}
+ui.endPrimary.addEventListener('click', () => {
+  ensureAudio();
+  if (endState === 'win') loadLevel(levelIndex === LEVELS.length - 1 ? 0 : levelIndex + 1);
+  else loadLevel(levelIndex);
+  startPlay();
+});
+ui.endSecondary.addEventListener('click', () => { ensureAudio(); loadLevel(levelIndex); startPlay(); });
+
+/* ---------- UI events ---------- */
+function showToast(msg, ms) {
+  ui.toast.textContent = msg;
+  ui.toast.hidden = true; void ui.toast.offsetWidth; ui.toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { ui.toast.hidden = true; }, ms || 2800);
+}
+ui.playTouch.addEventListener('click', () => { ensureAudio(); loadLevel(0); startPlay(); });
+ui.playMic.addEventListener('click', async () => {
+  ensureAudio();
+  ui.playMic.disabled = true;
+  const ok = await enableMic();
+  ui.playMic.disabled = false;
+  loadLevel(0); startPlay();
+  if (ok) showToast('Mikrofon açık. Bir saniye sessiz kal, sonra telefonun altına doğru üfle.', 4200);
+  else showToast('Mikrofon açılamadı. Ekrana basılı tutarak üfleyebilirsin.', 4200);
+});
+ui.restart.addEventListener('click', () => { if (state === 'play') { loadLevel(levelIndex); showToast('Bölüm baştan başladı.', 1600); } });
+ui.mute.addEventListener('click', () => {
+  muted = !muted;
+  if (master) master.gain.value = muted ? 0 : 0.9;
+  ui.mute.setAttribute('aria-pressed', String(muted));
+  ui.mute.setAttribute('aria-label', muted ? 'Sesi aç' : 'Sesi kapat');
+  ui.iconSound.hidden = muted; ui.iconMute.hidden = !muted;
+});
+
+canvas.addEventListener('pointerdown', e => {
+  if (state !== 'play') return;
+  e.preventDefault(); ensureAudio();
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  input.holding = true; input.holdT = 0;
+});
+const release = () => { input.holding = false; };
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+canvas.addEventListener('lostpointercapture', release);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && state === 'play') { e.preventDefault(); if (!e.repeat) { ensureAudio(); input.holding = true; input.holdT = 0; } }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space') input.holding = false; });
+window.addEventListener('blur', release);
+window.addEventListener('resize', resize);
+
+/* ---------- Loop ---------- */
+function frame(now) {
+  let dt = (now - last) / 1000; last = now;
+  if (!(dt > 0)) dt = 0; if (dt > 0.05) dt = 0.05;
+  time += dt; ltime += dt;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+function boot(data) {
+  resize();
+  loadLevel(0);
+  if (data && data.playing && Number.isInteger(data.level) && data.level >= 0 && data.level < LEVELS.length) {
+    loadLevel(data.level); startPlay();
+  }
+  if (!loopStarted) { loopStarted = true; requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); }); }
+}
+try { window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(() => ({ level: levelIndex, playing: state !== 'menu' })); } catch (_) {}
+const hot = window.claude && window.claude.hot;
+if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || {});
+})();
+</script>
+
+</body>
+</html>
