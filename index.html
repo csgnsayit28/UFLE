@@ -91,6 +91,11 @@
   .scale em{font-style:normal}
   .scale em:nth-child(2){text-align:center}
   .scale em:nth-child(3){text-align:right}
+  .sens{pointer-events:auto;flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--text);font:800 12px/1 var(--ui);white-space:nowrap;cursor:pointer}
+  .sens:focus-visible{outline:3px solid var(--seed);outline-offset:3px}
+  .sens .dot{width:9px;height:9px;border-radius:50%;background:rgba(251,248,239,.28);transition:background .12s}
+  .sens .dot.heard{background:var(--ember)}
+  .sens .dot.blow{background:var(--leaf)}
   .hint{max-width:520px;margin:9px auto 0;font:600 14px/1.4 var(--ui);color:var(--text)}
 
   .card{
@@ -160,6 +165,7 @@
 <div class="hud-bottom" id="hudBottom" hidden>
   <div class="meters">
     <div class="meter power"><span>Üfleme</span><div class="track-wrap"><div class="track"><i id="powerFill"></i><b style="left:33%"></b><b style="left:66%"></b></div><div class="scale" aria-hidden="true"><em>hafif</em><em>orta</em><em>güçlü</em></div></div></div>
+    <button class="sens" id="sensBtn" type="button" hidden aria-label="Mikrofon hassasiyetini değiştir"><span class="dot" id="sensDot"></span><span id="sensLabel">Hassasiyet: Orta</span></button>
     <div class="meter lung" id="lungMeter"><span>Nefes</span><div class="track-wrap"><div class="track"><i id="lungFill"></i></div><div class="scale" aria-hidden="true"><em>&nbsp;</em></div></div></div>
   </div>
   <p class="hint" id="hint">Ekrana basılı tut, karahindibaya üfle.</p>
@@ -217,7 +223,7 @@ const ui = {
   hint: $('hint'), hudTop: $('hudTop'), hudBottom: $('hudBottom'), start: $('startCard'), end: $('endCard'),
   endEyebrow: $('endEyebrow'), endTitle: $('endTitle'), endText: $('endText'), stars: $('stars'),
   endPrimary: $('endPrimary'), endSecondary: $('endSecondary'), toast: $('toast'), mute: $('muteBtn'),
-  iconSound: $('iconSound'), iconMute: $('iconMute'), restart: $('restartBtn'), playTouch: $('playTouch'), playMic: $('playMic')
+  iconSound: $('iconSound'), iconMute: $('iconMute'), sensBtn: $('sensBtn'), sensDot: $('sensDot'), sensLabel: $('sensLabel'), restart: $('restartBtn'), playTouch: $('playTouch'), playMic: $('playMic')
 };
 
 /* ---------- Levels (world units: 420 wide, ground near y=650) ---------- */
@@ -225,7 +231,7 @@ const LEVELS = [
   { name: 'İlk Nefes', seeds: 16, breeze: 0, gust: 0,
     ground: [[-600,652],[0,652],[140,648],[260,652],[420,646],[1100,646]],
     patches: [{x0:215, x1:300, need:4}], water: null,
-    hint: { touch: 'Ekrana basılı tut, karahindibaya üfle. Tohumları kahverengi toprağa indir.', mic: 'Telefonun altına doğru üfle. Tohumları kahverengi toprağa indir.' },
+    hint: { touch: 'Ekrana basılı tut, karahindibaya üfle. Tohumları kahverengi toprağa indir.', mic: 'Telefonun altına doğru üfle. Sağ alttaki nokta yeşilse üflemen algılanıyor, turuncuysa duyulan ses üfleme sayılmadı.' },
     tip: 'Biraz daha uzun üflemeyi dene.' },
   { name: 'Yakın ve Uzak', seeds: 18, breeze: 0, gust: 0,
     ground: [[-600,652],[0,652],[160,648],[240,656],[330,642],[420,640],[1100,640]],
@@ -334,6 +340,8 @@ function updateGoal() {
 function setHint() {
   ui.hint.textContent = mic ? level.hint.mic : level.hint.touch;
   ui.lungMeter.hidden = !!mic;
+  ui.sensBtn.hidden = !mic;
+  ui.sensLabel.textContent = 'Hassasiyet: ' + SENS[sensKey].label;
 }
 function startPlay() {
   state = 'play';
@@ -383,34 +391,74 @@ function audioFrame() {
 }
 
 /* ---------- Microphone ---------- */
+// A blow into the mic is loud, sustained, dominated by low-frequency wind rumble and noise-like.
+// Speech, music and room sounds are farther away, more tonal, or too short; those are rejected.
+const SENS = {
+  low:  { label: 'Düşük',  absMin: 0.07,  ratio: 4.5, need: 0.6,  info: 'Ortam seslerini daha az duyar. Biraz daha güçlü üflemen gerekir.' },
+  mid:  { label: 'Orta',   absMin: 0.035, ratio: 3.2, need: 0.5,  info: 'Çoğu oda için dengeli ayar.' },
+  high: { label: 'Yüksek', absMin: 0.016, ratio: 2.2, need: 0.38, info: 'Hafif üflemeyi de yakalar ama ortam seslerine daha açıktır.' }
+};
+const SENS_ORDER = ['low', 'mid', 'high'];
+let sensKey = 'mid';
+try { const v = localStorage.getItem('ufle-mic-sens'); if (v && SENS[v]) sensKey = v; } catch (_) {}
+
 async function enableMic() {
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !actx) return false;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     const srcNode = actx.createMediaStreamSource(stream);
-    const an = actx.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = 0.2;
+    const an = actx.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.3;
     srcNode.connect(an);
-    mic = { an, buf: new Float32Array(an.fftSize), freq: new Uint8Array(an.frequencyBinCount), floor: null, calibT: 0 };
+    mic = { an, buf: new Float32Array(an.fftSize), spec: new Float32Array(an.frequencyBinCount), floor: null, calibT: 0, candT: 0, offT: 0, active: false, heard: false };
     return true;
   } catch (e) { return false; }
 }
 function micLevel(dt) {
-  const m = mic;
+  const m = mic, cfg = SENS[sensKey];
   m.an.getFloatTimeDomainData(m.buf);
   let s = 0;
   for (let i = 0; i < m.buf.length; i++) s += m.buf[i] * m.buf[i];
   const rms = Math.sqrt(s / m.buf.length);
-  m.an.getByteFrequencyData(m.freq);
+  if (m.calibT < 1) {
+    m.calibT += dt;
+    m.floor = m.floor === null ? rms : m.floor * 0.85 + rms * 0.15;
+    m.active = false; m.heard = false;
+    return 0;
+  }
+  m.an.getFloatFrequencyData(m.spec);
   const binHz = actx.sampleRate / m.an.fftSize;
-  let lo = 0, nl = 0;
-  for (let i = 1; i * binHz < 1000 && i < m.freq.length; i++) { lo += m.freq[i]; nl++; }
-  lo /= Math.max(1, nl) * 255;
-  if (m.calibT < 0.9) { m.calibT += dt; m.floor = m.floor === null ? rms : m.floor * 0.9 + rms * 0.1; return 0; }
-  if (rms < m.floor * 1.6) m.floor = m.floor * 0.99 + rms * 0.01;
-  const over = rms - Math.max(0.006, m.floor * 2.2);
-  if (over <= 0) return 0;
-  const v = clamp(over / 0.08, 0, 1) * (0.55 + 0.9 * lo);
-  return v < 0.05 ? 0 : clamp(0.12 + v, 0, 1);
+  let pLow = 0, pAll = 0, lnSum = 0, pSum = 0, nFlat = 0;
+  for (let i = 1; i < m.spec.length; i++) {
+    const f = i * binHz;
+    if (f > 6000) break;
+    const db = Math.max(-140, m.spec[i]);
+    const p = Math.pow(10, db / 10);
+    pAll += p;
+    if (f < 250) pLow += p;
+    if (f >= 250 && f <= 4000) { lnSum += db * 0.2302585; pSum += p; nFlat++; }
+  }
+  const lowRatio = pAll > 0 ? pLow / pAll : 0;
+  const flat = (nFlat && pSum > 0) ? Math.exp(lnSum / nFlat) / (pSum / nFlat) : 0;
+  const thr = Math.max(cfg.absMin, m.floor * cfg.ratio);
+  const loud = rms > thr;
+  // noise-like (not tonal like voices or music) and carrying low-frequency rumble
+  const flatScore = clamp((flat - 0.04) / 0.12, 0, 1);
+  const lfScore = clamp((lowRatio - 0.15) / 0.35, 0, 1);
+  const cand = loud && flatScore * (0.4 + 0.6 * lfScore) >= cfg.need;
+
+  if (cand) { m.candT += dt; m.offT = 0; }
+  else { m.offT += dt; if (m.offT > 0.06) m.candT = 0; }
+  if (!m.active && m.candT >= 0.08) m.active = true;   // ignore claps, knocks and other short sounds
+  if (m.active && m.offT > 0.1) m.active = false;
+  m.heard = loud && !m.active;
+
+  if (!m.active && !cand) {   // follow steady room noise (fan, TV) so it stops counting as breath
+    const k = rms > m.floor ? dt / 3 : dt / 0.5;
+    m.floor += (rms - m.floor) * Math.min(1, k);
+  }
+  if (!m.active) return 0;
+  const over = 20 * Math.log10(Math.max(rms, 1e-6) / thr);
+  return clamp(0.15 + 0.85 * clamp(over / 16, 0, 1), 0, 1);
 }
 
 /* ---------- Update ---------- */
@@ -564,6 +612,10 @@ function hudFrame(a) {
   ui.power.style.transform = 'scaleX(' + blow.toFixed(3) + ')';
   ui.lung.style.transform = 'scaleX(' + input.lung.toFixed(3) + ')';
   ui.lungMeter.classList.toggle('tired', input.exhausted);
+  if (mic) {
+    const cls = 'dot' + (mic.active ? ' blow' : mic.heard ? ' heard' : '');
+    if (ui.sensDot.className !== cls) ui.sensDot.className = cls;
+  }
   if (!ui.wind.hidden) {
     ui.windArrow.style.transform = 'scaleX(' + (a < 0 ? -1 : 1) + ')';
     ui.wind.style.opacity = (0.45 + 0.55 * clamp(Math.abs(a) / 35, 0, 1)).toFixed(2);
@@ -869,8 +921,14 @@ ui.playMic.addEventListener('click', async () => {
   const ok = await enableMic();
   ui.playMic.disabled = false;
   loadLevel(0); startPlay();
-  if (ok) showToast('Mikrofon açık. Bir saniye sessiz kal, sonra telefonun altına doğru üfle.', 4200);
+  if (ok) showToast('Mikrofon açık. Bir saniye sessiz kal, sonra telefonun altına doğru üfle. Ortam gürültülüyse alttan hassasiyeti düşür.', 5200);
   else showToast('Mikrofon açılamadı. Ekrana basılı tutarak üfleyebilirsin.', 4200);
+});
+ui.sensBtn.addEventListener('click', () => {
+  sensKey = SENS_ORDER[(SENS_ORDER.indexOf(sensKey) + 1) % SENS_ORDER.length];
+  try { localStorage.setItem('ufle-mic-sens', sensKey); } catch (_) {}
+  ui.sensLabel.textContent = 'Hassasiyet: ' + SENS[sensKey].label;
+  showToast('Hassasiyet ' + SENS[sensKey].label.toLocaleLowerCase('tr') + '. ' + SENS[sensKey].info, 3200);
 });
 ui.restart.addEventListener('click', () => { if (state === 'play') { loadLevel(levelIndex); showToast('Bölüm baştan başladı.', 1600); } });
 ui.mute.addEventListener('click', () => {
