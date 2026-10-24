@@ -234,13 +234,13 @@ function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0
 
 /* ================= DATA ================= */
 const ENEMY = {
-  er:  { name: 'Er', hp: 3, speed: 26, gold: 5, dps: 1, weight: 'hafif', charge: 6, h: 27 },
-  kos: { name: 'Koşucu', hp: 2, speed: 46, gold: 4, dps: 1, weight: 'hafif', charge: 5, h: 25 },
-  kal: { name: 'Kalkanlı', hp: 5, speed: 18, gold: 10, dps: 1, weight: 'orta', charge: 9, h: 27, shield: true },
-  bay: { name: 'Bayraktar', hp: 5, speed: 26, gold: 15, dps: 1, weight: 'orta', charge: 10, h: 44 },
-  sis: { name: 'Sisçi', hp: 4, speed: 18, gold: 20, dps: 1, weight: 'orta', charge: 12, h: 32 },
-  dev: { name: 'Demir Dev', hp: 30, speed: 11, gold: 30, dps: 4, weight: 'agir', charge: 18, h: 44 },
-  kom: { name: 'Sis Komutanı', hp: 140, speed: 8, gold: 200, dps: 8, weight: 'kom', charge: 30, h: 62 }
+  er:  { name: 'Er', hp: 3, speed: 26, gold: 5, dps: 1, weight: 'hafif', charge: 6, h: 38 },
+  kos: { name: 'Koşucu', hp: 2, speed: 46, gold: 4, dps: 1, weight: 'hafif', charge: 5, h: 35 },
+  kal: { name: 'Kalkanlı', hp: 5, speed: 18, gold: 10, dps: 1, weight: 'orta', charge: 9, h: 38, shield: true },
+  bay: { name: 'Bayraktar', hp: 5, speed: 26, gold: 15, dps: 1, weight: 'orta', charge: 10, h: 60 },
+  sis: { name: 'Sisçi', hp: 4, speed: 18, gold: 20, dps: 1, weight: 'orta', charge: 12, h: 44 },
+  dev: { name: 'Demir Dev', hp: 30, speed: 11, gold: 30, dps: 4, weight: 'agir', charge: 18, h: 60 },
+  kom: { name: 'Sis Komutanı', hp: 140, speed: 8, gold: 200, dps: 8, weight: 'kom', charge: 30, h: 85 }
 };
 const TOWER = {
   okcu:  { name: 'Okçu Kulesi', short: 'Okçu', cost: [60, 90, 160], range: [150, 170, 190], rate: [0.7, 0.58, 0.48], dmg: [1, 1.5, 2],
@@ -628,7 +628,7 @@ function startWave() {
   groups.forEach((g, i) => {
     const [type, n, lead] = g;
     const big = type === 'dev';
-    const sx = big ? 32 : 18, sy = big ? 32 : 17;
+    const sx = big ? 44 : 24, sy = big ? 42 : 22;
     const cols = Math.max(1, Math.min(n > 9 ? 5 : 4, n));
     const width = (cols - 1) * sx;
     const b = bounds(20);
@@ -644,7 +644,7 @@ function spawnGroup(q) {
     const inRow = Math.min(q.cols, q.n - k);
     for (let c = 0; c < inRow; c++) { spawnEnemy(q.type, q.cx + (c - (inRow - 1) / 2) * q.sx + rand(-2, 2), -14 - r * q.sy + rand(-2, 2)); k++; }
   }
-  if (q.lead) spawnEnemy(q.lead, q.cx, -14 - rows * q.sy - (q.lead === 'kom' ? 20 : 0));
+  if (q.lead) spawnEnemy(q.lead, q.cx, -14 - rows * q.sy - (q.lead === 'kom' ? 30 : 4));
 }
 function spawnEnemy(type, x, y) {
   const d = ENEMY[type];
@@ -979,12 +979,12 @@ function update(dt) {
         let best = null;
         for (const e of G.enemies) { if (e.dead || !e.vis) continue; const d = hyp(e.x - ax0, e.y - e.z - ay0); if (d < D.range[t.lv] && (!best || e.y > best.y)) best = e; }
         t.tgt = best;
-        if (best) { const want = Math.atan2(best.x - ax0, -(best.y - best.z - 10 - ay0)); let da = want - (t.aim || 0); da = Math.atan2(Math.sin(da), Math.cos(da)); t.aim = (t.aim || 0) + da * Math.min(1, dt * 14); t.draw = clamp(1 - Math.max(0, t.cd) / 0.32, 0, 1); }
+        if (best) { const want = Math.atan2(best.x - ax0, -(best.y - best.z - best.d.h * 0.4 - ay0)); let da = want - (t.aim || 0); da = Math.atan2(Math.sin(da), Math.cos(da)); t.aim = (t.aim || 0) + da * Math.min(1, dt * 14); t.draw = clamp(1 - Math.max(0, t.cd) / 0.32, 0, 1); }
         else { t.draw = Math.max(0, (t.draw || 0) - dt * 4); if (t.cd < 0) t.cd = 0; }
         if (best && t.cd <= 0) {
           arch.forEach((a, i) => {
             const ox = t.x + a[0] * sc + Math.sin(t.aim) * 7, oy = t.y + (a[1] - 9.5) * sc - Math.cos(t.aim) * 7;
-            G.proj.push({ k: 'arrow', x: ox, y: oy, tgt: best, tx: best.x, ty: best.y - 10, dmg: i === 0 ? D.dmg[t.lv] : D.dmg[t.lv] * 0.35, pierce: t.lv >= 2, dist: 0, ang: t.aim - Math.PI / 2 });
+            G.proj.push({ k: 'arrow', x: ox, y: oy, tgt: best, tx: best.x, ty: best.y - best.d.h * 0.4, dmg: i === 0 ? D.dmg[t.lv] : D.dmg[t.lv] * 0.35, pierce: t.lv >= 2, dist: 0, ang: t.aim - Math.PI / 2 });
           });
           t.cd = D.rate[t.lv]; t.draw = 0; t.rel = 0.16; sfx.arrow();
         }
@@ -995,7 +995,7 @@ function update(dt) {
     if (t.type === 'fener') {
       const D = TOWER.fener, ox = t.x, oy = t.y - 52; let best = null;
       for (const e of G.enemies) { if (e.dead || !e.vis) continue; const d = hyp(e.x - ox, e.y - oy); if (d < D.range[t.lv] && (!best || e.y > best.y)) best = e; }
-      if (best) { hurt(best, D.dmg[t.lv], 'light'); G.parts.push({ k: 'beam', x: ox, y: oy, x2: best.x, y2: best.y - best.z - 12, life: 0.14, max: 0.14 }); G.parts.push({ k: 'star', x: best.x, y: best.y - best.z - 12, life: 0.16, max: 0.16, c: '#FFE6B0', r: 8 }); t.cd = D.rate[t.lv]; }
+      if (best) { hurt(best, D.dmg[t.lv], 'light'); G.parts.push({ k: 'beam', x: ox, y: oy, x2: best.x, y2: best.y - best.z - best.d.h * 0.45, life: 0.14, max: 0.14 }); G.parts.push({ k: 'star', x: best.x, y: best.y - best.z - best.d.h * 0.45, life: 0.16, max: 0.16, c: '#FFE6B0', r: 8 }); t.cd = D.rate[t.lv]; }
     } else if (t.type === 'man') {
       const D = TOWER.man, ox = t.x, oy = t.y - 30; let best = null, bestScore = -1;
       for (const e of G.enemies) {
@@ -1016,7 +1016,7 @@ function update(dt) {
   for (let i = G.proj.length - 1; i >= 0; i--) {
     const p = G.proj[i];
     if (p.k === 'arrow') {
-      if (p.tgt && !p.tgt.dead) { p.tx = p.tgt.x; p.ty = p.tgt.y - p.tgt.z - 10; }
+      if (p.tgt && !p.tgt.dead) { p.tx = p.tgt.x; p.ty = p.tgt.y - p.tgt.z - p.tgt.d.h * 0.4; }
       const dx = p.tx - p.x, dy = p.ty - p.y, d = hyp(dx, dy), step = 520 * dt;
       if (d <= step + 4) { if (p.tgt && !p.tgt.dead) { const e = p.tgt, blk = hurt(e, p.dmg, 'arrow', { pierce: p.pierce }); hitFx(p.tx, p.ty, p.ang != null ? p.ang : Math.atan2(dy, dx), blk, e); } G.proj.splice(i, 1); continue; }
       p.x += dx / d * step; p.y += dy / d * step; p.ang = Math.atan2(dy, dx); p.dist += step; if (p.dist > 700) G.proj.splice(i, 1);
@@ -1056,17 +1056,17 @@ function update(dt) {
 
 /* ================= RENDER ================= */
 function drawBody(c, e, over) {
-  if (e.type === 'er') { c.scale(0.9, 0.9); drawShapes(c, SOLDIER, over); drawShapes(c, SPEAR, over); drawShapes(c, SASH, over); }
-  else if (e.type === 'kos') { c.scale(0.85, 0.85); drawShapes(c, RUNNER, over); }
+  if (e.type === 'er') { c.scale(1.25, 1.25); drawShapes(c, SOLDIER, over); drawShapes(c, SPEAR, over); drawShapes(c, SASH, over); }
+  else if (e.type === 'kos') { c.scale(1.2, 1.2); drawShapes(c, RUNNER, over); }
   else if (e.type === 'kal') {
-    c.scale(0.9, 0.9);
+    c.scale(1.25, 1.25);
     if (e.shieldDown > 0) { c.save(); c.translate(-10, 2); c.rotate(-1.3); drawShapes(c, SHIELD, over); c.restore(); c.rotate(-0.2); drawShapes(c, SOLDIER, over); }
     else { drawShapes(c, SOLDIER, over); drawShapes(c, SPEAR, over); drawShapes(c, SHIELD, over); }
   }
-  else if (e.type === 'bay') { c.scale(0.9, 0.9); c.strokeStyle = over || '#6E6656'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(-8, 0); c.lineTo(-8, -44); c.stroke(); if (e.flag) drawShapes(c, BANNER, over); drawShapes(c, SOLDIER, over); drawShapes(c, SASH, over); }
-  else if (e.type === 'sis') { c.scale(0.95, 0.95); drawShapes(c, SISCI, over); }
-  else if (e.type === 'dev') { c.scale(0.4, 0.4); drawShapes(c, DEV, over); }
-  else if (e.type === 'kom') { c.scale(0.42, 0.42); drawShapes(c, KOM, over); }
+  else if (e.type === 'bay') { c.scale(1.25, 1.25); c.strokeStyle = over || '#6E6656'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(-8, 0); c.lineTo(-8, -44); c.stroke(); if (e.flag) drawShapes(c, BANNER, over); drawShapes(c, SOLDIER, over); drawShapes(c, SASH, over); }
+  else if (e.type === 'sis') { c.scale(1.3, 1.3); drawShapes(c, SISCI, over); }
+  else if (e.type === 'dev') { c.scale(0.55, 0.55); drawShapes(c, DEV, over); }
+  else if (e.type === 'kom') { c.scale(0.58, 0.58); drawShapes(c, KOM, over); }
 }
 function drawEnemy(c, e) {
   c.save(); c.translate(e.x, e.y - e.z - (e.kb || 0));
@@ -1078,13 +1078,14 @@ function drawEnemy(c, e) {
   if (e.flash > 0) { c.save(); drawBody(c, e, `rgba(255,255,255,${(0.8 * e.flash / 0.12).toFixed(3)})`); c.restore(); }
   c.restore();
   if (e.vis && e.hp < e.maxHp) {
-    const w = e.type === 'kom' ? 50 : e.type === 'dev' ? 32 : 18, y = e.y - e.z - e.d.h - 6;
+    const w = e.type === 'kom' ? 64 : e.type === 'dev' ? 44 : 24, y = e.y - e.z - e.d.h - 6;
     c.fillStyle = 'rgba(21,24,41,0.6)'; c.fillRect(e.x - w / 2, y, w, 3.5);
     c.fillStyle = e.vuln > 0 ? '#FFD38A' : '#E8574A'; c.fillRect(e.x - w / 2, y, w * Math.max(0, e.hp / e.maxHp), 3.5);
   }
 }
 function drawSignature(c, type, x, y, a, n) {
   c.save(); c.globalAlpha = a; c.fillStyle = '#E8574A';
+  c.translate(x, y); c.scale(1.38, 1.38); x = 0; y = 0;
   const tri = (px, py) => { c.beginPath(); c.moveTo(px, py); c.lineTo(px + 3, py - 6); c.lineTo(px + 1.5, py + 0.5); c.closePath(); c.fill(); };
   if (type === 'er') tri(x, y - 21);
   else if (type === 'kos') { c.beginPath(); c.moveTo(x, y - 16); c.lineTo(x - 11, y - 19); c.lineTo(x - 12, y - 14); c.lineTo(x, y - 14); c.closePath(); c.fill(); }
@@ -1200,8 +1201,8 @@ function render() {
   for (const w of G.warns) {
     const a = 0.55 + 0.45 * Math.sin(G.time * 8);
     const n = Math.min(5, Math.max(1, Math.ceil(w.n / 3)));
-    for (let i = 0; i < n; i++) drawSignature(ctx, w.type === 'bay' ? 'er' : w.type, w.x + (i - (n - 1) / 2) * 12, wny + 24, a);
-    if (w.lead === 'bay') drawSignature(ctx, 'bay', w.x, wny + 34, a);
+    for (let i = 0; i < n; i++) drawSignature(ctx, w.type === 'bay' ? 'er' : w.type, w.x + (i - (n - 1) / 2) * 16, wny + 26, a);
+    if (w.lead === 'bay') drawSignature(ctx, 'bay', w.x, wny + 40, a);
     ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#E8574A'; ctx.beginPath(); ctx.moveTo(w.x - 7, wny + 30); ctx.lineTo(w.x, wny + 37); ctx.lineTo(w.x + 7, wny + 30); ctx.lineTo(w.x + 7, wny + 34); ctx.lineTo(w.x, wny + 41); ctx.lineTo(w.x - 7, wny + 34); ctx.closePath(); ctx.fill(); ctx.restore();
   }
   if (G.tornado) drawTornado(ctx, G.tornado);
