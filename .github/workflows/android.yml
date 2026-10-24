@@ -1,0 +1,60 @@
+name: Hortum Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hortum/**'
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Oyun dosyasını uygulamaya kopyala
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp hortum/index.html android/app/src/main/assets/www/index.html
+
+      - name: APK derle
+        working-directory: android
+        run: gradle assembleDebug --no-daemon -Pvcode=${{ github.run_number }}
+
+      - name: APK dosyasını hazırla
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk hortum.apk
+
+      - name: İndirme sayfasında yayınla
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete hortum-apk --cleanup-tag --yes || true
+          gh release create hortum-apk hortum.apk \
+            --title "Hortum · Android deneme sürümü (derleme ${{ github.run_number }})" \
+            --notes "Telefona indirip kurulabilen deneme APK'sı. Oyun her güncellendiğinde bu dosya otomatik olarak yenilenir." \
+            --latest
+
+      - name: Derleme çıktısını sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: hortum-apk
+          path: hortum.apk

@@ -1275,8 +1275,8 @@ $('pSell').addEventListener('click', () => {
   const t = selected; if (!t) return; G.gold += Math.floor(t.spent * 0.6); G.towers.splice(G.towers.indexOf(t), 1); burstParts(t.x, t.y, ['#C8D1CE', '#A8865A'], 10, 50); deselect(); updateHUD(true);
 });
 $('speedBtn').addEventListener('click', () => { G.speed = G.speed === 1 ? 2 : 1; $('speedBtn').textContent = G.speed + '×'; });
-$('pauseBtn').addEventListener('click', () => { if (screen !== 'play') return; G.paused = true; $('pauseEyebrow').textContent = `Bölüm ${G.ci + 1} · ${chap.name}`; $('pause').hidden = false; });
-$('resumeBtn').addEventListener('click', () => { G.paused = false; $('pause').hidden = true; });
+$('pauseBtn').addEventListener('click', () => pauseGame());
+$('resumeBtn').addEventListener('click', () => { ensureAudio(); G.paused = false; $('pause').hidden = true; });
 $('restartBtn').addEventListener('click', () => { $('pause').hidden = true; newGame(G.ci); });
 $('toMenuBtn').addEventListener('click', toMenu);
 $('endPrimary').addEventListener('click', () => {
@@ -1316,6 +1316,16 @@ function frame(now) {
   render();
   requestAnimationFrame(frame);
 }
+function pauseGame() { if (screen !== 'play' || G.paused) return; G.paused = true; $('pauseEyebrow').textContent = `Bölüm ${G.ci + 1} · ${chap.name}`; $('pause').hidden = false; }
+window.__back = () => {
+  if (screen === 'menu') return 'exit';
+  if (screen === 'end') { toMenu(); return 'ok'; }
+  if (G.paused) { G.paused = false; $('pause').hidden = true; return 'ok'; }
+  if (placing || aiming || selected) { placing = null; ghost = null; aiming = false; deselect(); refreshTray(); updateHUD(true); return 'ok'; }
+  pauseGame(); return 'ok';
+};
+window.__appPause = () => { pauseGame(); if (actx && actx.state === 'running') actx.suspend().catch(() => {}); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) window.__appPause(); });
 window.__hortum = {
   G, get chap() { return chap; }, newGame, startWave, update, spawnTornado,
   place(type, x, y) { const c = TOWER[type].cost[0]; if (G.gold < c || !validSpot(type, x, y)) return false; G.gold -= c; G.towers.push({ type, lv: 0, x, y, cd: 0.4, spent: c, flash: 0 }); return true; },

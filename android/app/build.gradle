@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.csgnsayit.hortum'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.csgnsayit.hortum'
+        minSdk 24
+        targetSdk 35
+        versionCode Integer.parseInt((project.findProperty('vcode') ?: '1').toString())
+        versionName "0.1." + (project.findProperty('vcode') ?: '1')
+    }
+
+    signingConfigs {
+        test {
+            // Deneme imzası: her derleme aynı anahtarla imzalanır, böylece yeni sürüm eskisinin üstüne kurulur.
+            // Play Store için ayrı, gizli bir anahtar gerekir.
+            storeFile file('../keystore/hortum-test.jks')
+            storePassword 'hortum-test'
+            keyAlias 'hortum'
+            keyPassword 'hortum-test'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.test
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.test
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.core:core:1.13.1'
+}
